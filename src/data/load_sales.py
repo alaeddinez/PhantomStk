@@ -11,15 +11,17 @@ import logging as log
 PATH = './data/'
 
 SOURCE_DICT = { 
-                'sales_11_14': PATH + 'load_sales.sql' ,
-                'daily_sales': PATH + 'load_daily_sales.sql'
+                'sales_11_14': PATH + 'load_sales.sql',
+                'daily_sales': PATH + 'load_daily_sales.sql',
+                'day_sales': PATH + 'load_sales_day.sql',
+                'cpq': PATH + 'load_cpq_temp.sql'
                }
 
 
 class LoadSales():
     """
     """
-    def __init__(self,data_source, option_source, year, week,store):
+    def __init__(self,data_source, option_source, date, store):
         if option_source == "teradata":
             self.data_source = data_source
             SALES = read_sql(SOURCE_DICT[self.data_source])
@@ -31,9 +33,20 @@ class LoadSales():
             self.data_source = data_source
             sql_req = read_sql(SOURCE_DICT[self.data_source])
             sql_req = sql_req.replace('\n', ' ').replace('\r', ' ')
-            sql_req = sql_req.replace('var_year', year).replace('var_week', week).replace('var_store',store)
+            sql_req = sql_req.replace('var_date', date).replace('var_store', store)
             bq = BigQuery()
             df_BQ = bq.select(sql_req)
             self.dataframe = df_BQ
         else :
             print("wrong option")
+
+class LoadCPQ():
+    """
+    """
+    def __init__(self,data_source):
+            self.data_source = data_source
+            sql_req = read_sql(SOURCE_DICT[self.data_source])
+            sql_req = sql_req.replace('\n', ' ').replace('\r', ' ')
+            bq = BigQuery()
+            df_BQ = bq.select(sql_req)
+            self.dataframe = df_BQ

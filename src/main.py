@@ -1,45 +1,48 @@
 import pandas as pd
-from data import LoadSales
+from data import LoadSales, LoadCPQ
+#from data import LoadInvent, LoadStkMag
 from datetime import datetime
 import numpy as np
 import os
 from data import storage_blob
-#executer le script mercredi pour récuperer toutes les ventes (jusqu'à mardi soir)
-# loading data at 2020/02/11 (mardi)
-date_execution = "20200212" # mercredi
-store = '14'
-# TODO : prev journaliere !!!  diviser pas 6 (vekia)
-data = storage_blob(bucket='big-data-dev-supply-sages', blob='EXTRACTION_PV_' + store + '_'+ date_execution +'.csv').select_bucket(sep=";")
-previous_monday_date = data.columns[3]
-# on s'interesse aux semaine passée!  DU 2020/02/10   ==> 2020/02/17 pour matcher avec les ventes réelles
-# cet intervalle correspond à la semaine 7 dans ce cas
-#on recupere la prévision de cette semaine seulement
-data = data.drop(["POS_ID", "ECART_TYPE"], axis=1)#56174895
-data = pd.melt(data, id_vars=['RC_ID'])
-data = data[data.variable == previous_monday_date]
+from utils import *
+import datetime
+# ##############################################################
+#           calcul de score par mag/jour
+# ##############################################################
+# TODO :adding CPQ INFO
+CPQ_df = LoadCPQ('cpq').dataframe
+store = '14' 
+start = datetime.datetime.strptime("2020-01-01", "%Y-%m-%d")
+end = datetime.datetime.strptime("2020-01-10", "%Y-%m-%d")
+date_generated = [start + datetime.timedelta(days=x) for x in range(0, (end- start).days)]
+list_date = list()
+for date in date_generated:
+    li = date.strftime("%Y-%m-%d")
+    list_date.append(li)
+data_score_days = pd.DataFrame()
 
-def string_to_date(str_date):
-    return(datetime.strptime(eval(str_date), '%d/%m/%Y'))
+for date_execution in list_date:
+    print(date_execution)
+    # ##### real sales ###########
+    SALES_df = LoadSales('day_sales', option_source="bq",store = store ,date =date_execution).dataframe
+    # ##### vekia prev ###########
+    data = storage_blob(bucket='big-data-dev-supply-sages', blob='EXTRACTION_PV_' + store + '_'+ ''.join(e for e in date_execution if e.isalnum()) +'.csv').select_bucket(sep=";")
+    data = prep_vekia(data, date_execution)
+    data_score = calcul_score(data, SALES_df, CPQ_df)
+    data_score_days = data_score_days.append(data_score)
+    #sort by ref/day
+    data_score_days = data_score_days.sort_values(by=['NUM_ART', 'variable'])
 
-data.variable = data['variable'].apply(string_to_date)
-# data["week_of_year"] = data["variable"].dt.week
-# data["year_of_calendar"] = data["variable"].dt.year
-data.rename(columns={'RC_ID': 'NUM_ART'}, inplace=True)
-list_art_vekia = np.unique(data.NUM_ART)
-# ##### real sales ###########
-# TODO: un appel par magasin
-SALES_df = LoadSales('daily_sales', option_source="bq", year = '2020',  week = '5',store = '14').dataframe
-# TODO: sort by year and week to detect the recent !
-
-# left join the vekia prev with actual values
-merged = data.merge(SALES_df[["NUM_ART", "week_of_year", "year_of_calendar", "QTE_VTE"]], on=["NUM_ART"], how='left')
-merged = merged.dropna()
-merged.QTE_VTE = merged.QTE_VTE.astype("float")
-# Load qté chantier
-
-# merge
-merged["coef"] = merged.value - merged.QTE_VTE
+#############################################################
+#           pousser les alertes
+#############################################################
+data_score_days["flag"] = 1
 # TODO : utiliser les données des inventaires
-df_counts = merged.groupby(['NUM_ART']).size().reset_index(name='counts')
-df_counts.sort  
-ex = merged[merged.NUM_ART == 953235]
+# TODO : recuperer le flag si y avait inventaire ou pas le jour j - 1 ou j ?
+inv_data = LoadInvent('inventory', store='14', date='2020-01-09').dataframe
+merged = data_score_days.merge(inv_data, on=["NUM_ART"], how='left')
+# TODO : utiliser les données stock magasin
+stk_data = LoadInvent('stk_mag', store='14', date='2020-01-09').dataframe
+merged = data_score_days.merge(stk_data, on=["NUM_ART"], how='left')
+
