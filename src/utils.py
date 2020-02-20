@@ -55,7 +55,7 @@ def calcul_score(df_vekia, df_sales, cpq_df):
     merged["score_cum"] = merged.score
     return merged
 
-
+# TODO : unused 
 def create_date_range(start_date, end_date):
     start = datetime.datetime.strptime(start_date, "%Y-%m-%d")
     end = datetime.datetime.strptime(end_date, "%Y-%m-%d")
@@ -69,3 +69,25 @@ def create_date_range(start_date, end_date):
 
 
 
+def score_cum_day(real_sales, prev_sales, cpq_table, inv_table, stk_table, date, store):
+    prev_sales = prep_vekia(prev_sales, date)
+    data_score_days = calcul_score(prev_sales, real_sales, cpq_table)
+    #sort by ref/day
+    data_score_days = data_score_days.sort_values(by=['NUM_ART', 'variable'])
+    #############################################################
+    #           pousser les alertes
+    #############################################################
+    data_score_days["flag_alerte"] = 1
+    # TODO : utiliser les données des inventaires
+    # TODO : recuperer le flag si y avait inventaire ou pas le jour j - 1 ou j ?
+    merged = data_score_days.merge(inv_table, on=["NUM_ART"], how='left')
+    # TODO : utiliser les données stock magasin
+    merged = merged.merge(stk_table, on=["NUM_ART"], how='left')
+    # ne pas pousser l'alerte lorsque le stock mag est dejà null le jour j
+    # le score ne tombe pas à 0 !!
+    merged.flag_alerte[merged.flag_stk.notnull()] = 0
+    # TODO: ne pas pousser l'alerte lorsque un inventaire a été déjà fait le jour j ou j-1 ?
+    # TODO : le score_cum tombe à 0 si un inventaire a déjà été fait !
+    merged.flag_alerte[merged.flag_inv.notnull()] = 0
+    merged.score_cum[merged.flag_inv.notnull()] = 0
+    return(merged)
