@@ -14,7 +14,9 @@ SOURCE_DICT = {
                 'sales_11_14': PATH + 'load_sales.sql',
                 'daily_sales': PATH + 'load_daily_sales.sql',
                 'day_sales': PATH + 'load_sales_day.sql',
-                'cpq': PATH + 'load_cpq_temp.sql'
+                'cpq': PATH + 'load_cpq_temp.sql',
+                'inventory': PATH + 'load_inventaire.sql',
+                'stk_mag': PATH + 'load_stk_mag.sql'
                }
 
 
@@ -47,6 +49,31 @@ class LoadCPQ():
             self.data_source = data_source
             sql_req = read_sql(SOURCE_DICT[self.data_source])
             sql_req = sql_req.replace('\n', ' ').replace('\r', ' ')
+            bq = BigQuery()
+            df_BQ = bq.select(sql_req)
+            self.dataframe = df_BQ
+
+
+class LoadInvent():
+    """
+    """
+    def __init__(self,data_source, date, store):
+            self.data_source = data_source
+            sql_req = read_sql(SOURCE_DICT[self.data_source])
+            sql_req = sql_req.replace('\n', ' ').replace('\r', ' ')
+            sql_req = sql_req.replace('var_date', date).replace('var_store', store)
+            bq = BigQuery()
+            df_BQ = bq.select(sql_req)
+            self.dataframe = df_BQ
+
+class LoadStkMag():
+    """
+    """
+    def __init__(self,data_source, date, store):
+            self.data_source = data_source
+            sql_req = read_sql(SOURCE_DICT[self.data_source])
+            sql_req = sql_req.replace('\n', ' ').replace('\r', ' ')
+            sql_req = sql_req.replace('var_date', date).replace('var_store', store)
             bq = BigQuery()
             df_BQ = bq.select(sql_req)
             self.dataframe = df_BQ

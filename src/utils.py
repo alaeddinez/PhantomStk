@@ -1,5 +1,12 @@
 import pandas as pd
+from data import LoadSales, LoadCPQ
+from data import LoadInvent, LoadStkMag
+from datetime import datetime
 import numpy as np
+import os
+from data import storage_blob
+from utils import *
+import datetime
 
 
 
@@ -47,3 +54,18 @@ def calcul_score(df_vekia, df_sales, cpq_df):
     merged.score = merged['score'].apply(amplif_coeff)
     merged["score_cum"] = merged.score
     return merged
+
+
+def create_date_range(start_date, end_date):
+    start = datetime.datetime.strptime(start_date, "%Y-%m-%d")
+    end = datetime.datetime.strptime(end_date, "%Y-%m-%d")
+    date_generated = [start + datetime.timedelta(days=x) for x in range(0, (end- start).days)]
+    list_date = list()
+    for date in date_generated:
+        li = date.strftime("%Y-%m-%d")
+        list_date.append(li)
+    list_date = np.unique(list_date)
+    return(list_date)
+
+
+
