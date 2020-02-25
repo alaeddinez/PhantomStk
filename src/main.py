@@ -1,6 +1,6 @@
 import pandas as pd
-from data import LoadSales, LoadCPQ
-from data import LoadInvent, LoadStkMag
+from data import LoadSales, LoadCPQ, LoadInvent3Weeks, LoadStkMagCPQ
+from data import LoadInvent, LoadStkMag, LoadVekiaSuspect
 from datetime import datetime
 import numpy as np
 import os
@@ -10,8 +10,9 @@ import datetime
 # TODO : intiate the loop with the first csv file (in this case 01/01/2020)
 # loading CPQ
 CPQ_df = LoadCPQ('cpq').dataframe
-store = '14'
-date_execution = "2020-02-24"
+# TODO : create a folder per mag ?
+store = '3'
+date_execution = "2020-02-14"
 # ##### real sales ###########
 SALES_df = LoadSales('day_sales', option_source="bq", store=store,
                      date=date_execution).dataframe
@@ -20,6 +21,7 @@ data = storage_blob(bucket='big-data-dev-supply-sages',
                     blob='EXTRACTION_PV_' + store + '_'
                     + ''.join(e for e in date_execution if e.isalnum())
                     + '.csv').select_bucket(sep=";")
+
 # #### inventory data ########
 inv_data = LoadInvent('inventory', date=date_execution, store=store).dataframe
 # #### stk mag data ##########
@@ -51,12 +53,50 @@ day_before.rename(columns={'score_cum': 'score_cum_before'}, inplace=True)
 day_before.rename(columns={'flag_inv': 'flag_inv_before'}, inplace=True)
 
 day_today = day_today.merge(day_before, on=["NUM_ART"], how='left')
-#TODO : create condition if score_cum_before is Nan
-if np.unique(day_today["score_cum_before"].notnull())[0]:
-    day_today["score_cum"] = day_today["score_cum"] + day_today["score_cum_before"]
-else:
-    print("no score added")
+day_today.score_cum_before = day_today.score_cum_before.fillna(0)
+day_today["score_cum"] = day_today["score_cum"] + day_today["score_cum_before"]
+
+
+
+date_3weeks = datetime.datetime.strptime(date_execution, "%Y-%m-%d")
+date_3weeks = date_3weeks - datetime.timedelta(days=22)
+date_3weeks = date_3weeks.strftime("%Y-%m-%d")
+inv_3weeks = LoadInvent3Weeks('inv_3weeks', store=store, date_1=date_3weeks,
+                              date_2=date_execution).dataframe
+
+day_today = day_today.merge(inv_3weeks, on=["NUM_ART"], how='left')
+
+
+data_stk_cpq = LoadStkMagCPQ('stk_mag_cpq', store=store,
+                             date_1=date_execution_lag,
+                             date_2=date_execution, prop='2').dataframe
+
+day_today = day_today.merge(data_stk_cpq, on=["NUM_ART"], how='left')
+
+day_today.flag_alerte[day_today.flag_inv_3weeks.notnull()] = 0
+day_today.flag_alerte[day_today.flag_stk_cpq.notnull()] = 0
 
 day_today.to_csv("../output/score_" +
                  ''.join(e for e in date_execution if e.isalnum()) + ".csv",
                  sep=";")
+
+susp_data = day_today
+susp_data = susp_data[susp_data.score_cum > 0 ]
+susp_data = susp_data[susp_data.flag_alerte == 1 ]
+susp_data = susp_data.sort_values(by=["score_cum"])
+
+# loading vekia suspect score to compare
+vekia_sus = LoadVekiaSuspect('vekia_sus', store=store, date=date_execution).dataframe
+# matcher avec les ref toped vekia
+vekia_sus["flag_match_vekia"] = 1
+susp_data = susp_data.merge(vekia_sus, on=["NUM_ART"], how='left')
+susp_data.to_csv("../output/suspect_example.csv",sep=";")
+
+
+
+
+susp_data.tail(100)[susp_data.NUM_ART.isin(vekia_sus.NUM_ART)]
+susp_data[susp_data.NUM_ART.isin(vekia_sus.NUM_ART)]
+
+
+
