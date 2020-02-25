@@ -1,4 +1,4 @@
-import pandas as pd 
+import pandas as pd
 from .utils import read_sql
 from skbox.connectors.bigquery import BigQuery
 from skbox.connectors.teradata import Teradata

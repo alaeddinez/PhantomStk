@@ -11,7 +11,7 @@ import datetime
 # loading CPQ
 CPQ_df = LoadCPQ('cpq').dataframe
 store = '14'
-date_execution = "2020-01-03"
+date_execution = "2020-02-24"
 # ##### real sales ###########
 SALES_df = LoadSales('day_sales', option_source="bq", store=store,
                      date=date_execution).dataframe
@@ -45,14 +45,14 @@ try:
 except:
     print("the corresponding file doesnt exist ==> initiating")
     day_before = pd.DataFrame(columns=day_today.columns.values)
-    
+
 day_before = day_before[["NUM_ART", "score_cum", "flag_inv"]]
 day_before.rename(columns={'score_cum': 'score_cum_before'}, inplace=True)
 day_before.rename(columns={'flag_inv': 'flag_inv_before'}, inplace=True)
 
 day_today = day_today.merge(day_before, on=["NUM_ART"], how='left')
 #TODO : create condition if score_cum_before is Nan
-if day_today["score_cum_before"].notnull():
+if np.unique(day_today["score_cum_before"].notnull())[0]:
     day_today["score_cum"] = day_today["score_cum"] + day_today["score_cum_before"]
 else:
     print("no score added")
